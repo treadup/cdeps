@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
+
 
 #define TRUE 1
 #define FALSE 0
@@ -342,8 +345,52 @@ void process_file(char *filename) {
     }
 }
 
+int is_c_filename(char *filename) {
+    char *s = strrchr(filename, '.');
+
+    if(s) {
+        return !strcmp(s, ".c");
+    } else {
+        return FALSE;
+    }
+}
+
+int is_c_file(struct dirent *directory_entry) {
+    if(directory_entry->d_type == DT_REG) {
+        return is_c_filename(directory_entry->d_name);
+    } else {
+        return FALSE;
+    }
+}
+
 void process_folder(char *dirname) {
-    error_exit("Directory processing is not implemented yet.");
+    DIR* directory;
+    struct dirent *directory_entry;
+
+    directory = opendir(dirname);
+    if(directory) {
+        while((directory_entry = readdir(directory))) {
+            char *filename = directory_entry->d_name;
+            if(!strcmp(".", filename)) {
+                continue;
+            } else if(!strcmp("..", filename)) {
+                continue;
+            } else if(!strcmp(".git", filename)) {
+                continue;
+            } else if(is_c_file(directory_entry)) {
+                process_file(filename);
+            } else if(directory_entry->d_type == DT_DIR) {
+                process_folder(filename);
+            }
+        }
+
+        if(closedir(directory)) {
+            printf("Could not close directory %s", dirname);
+        }
+    } else {
+        printf("Could not open directory %s", dirname);
+        exit(1);
+    }
 }
 
 int main(int argc, char* argv[]) {
