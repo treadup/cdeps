@@ -265,6 +265,29 @@ int readline_without_comments(FILE *fp, char *buffer) {
     return count;
 }
 
+char *basename(char *filename) {
+    // Remove trailing .c
+    int len = (int) strlen(filename);
+    filename[len-2] = 0;
+
+    // Skip leading ./
+    if(filename[0] == '.' && filename[1] == '/') {
+        filename += 2;
+    }
+
+    return filename;
+}
+
+void generate_dependency_file(char *filename, int include_filename_count, char *include_filenames[]) {
+    puts("Generate dependency file");
+    filename = basename(filename);
+    printf("Processing %s.c\n", filename);
+    printf("Number of include files: %d\n", include_filename_count);
+    for(int k=0; k<include_filename_count; k++) {
+        printf("%s\n", include_filenames[k]);
+    }
+}
+
 char *clonestr(char *string) {
     if (string == NULL) {
         error_exit("Trying to clone a null string");
@@ -335,10 +358,7 @@ void process_file(char *filename) {
     }
     fclose(fp);
 
-    printf("Number of include files: %d\n", include_filename_count);
-    for(int k=0; k<include_filename_count; k++) {
-        printf("%s\n", include_filenames[k]);
-    }
+    generate_dependency_file(filename, include_filename_count, include_filenames);
 
     for(int k=0; k<include_filename_count; k++) {
         free(include_filenames[k]);
