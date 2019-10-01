@@ -363,6 +363,14 @@ int is_c_file(struct dirent *directory_entry) {
     }
 }
 
+char *join_path_elements(char *path1, char *path2) {
+    int len = strlen(path1) + strlen(path2) + 2;
+    char *result = malloc(len);
+
+    snprintf(result, len, "%s/%s", path1, path2);
+    return result;
+}
+
 void process_folder(char *dirname) {
     DIR* directory;
     struct dirent *directory_entry;
@@ -378,9 +386,13 @@ void process_folder(char *dirname) {
             } else if(!strcmp(".git", filename)) {
                 continue;
             } else if(is_c_file(directory_entry)) {
+                filename = join_path_elements(dirname, filename);
                 process_file(filename);
+                free(filename);
             } else if(directory_entry->d_type == DT_DIR) {
-                process_folder(filename);
+                char *subdir_name = join_path_elements(dirname, filename);
+                process_folder(subdir_name);
+                free(subdir_name);
             }
         }
 
@@ -396,6 +408,8 @@ void process_folder(char *dirname) {
 int main(int argc, char* argv[]) {
     struct stat statbuffer;
     char *target;
+    int last_index;
+
     check_usage(argc);
     target = argv[1];
 
@@ -406,6 +420,11 @@ int main(int argc, char* argv[]) {
     if(S_ISREG(statbuffer.st_mode)) {
         process_file(target);
     } else if (S_ISDIR(statbuffer.st_mode)) {
+        // Remove trailing slash on directory name
+        last_index = (int)strlen(target)-1;
+        if(target[last_index]=='/') {
+            target[last_index] = 0;
+        }
         process_folder(target);
     } else {
         error_exit("The target needs to be a file or a folder");
