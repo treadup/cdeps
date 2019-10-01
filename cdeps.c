@@ -375,9 +375,9 @@ int is_c_filename(char *filename) {
     }
 }
 
-int is_c_file(struct dirent *directory_entry) {
+int is_c_file(const struct dirent *directory_entry) {
     if(directory_entry->d_type == DT_REG) {
-        return is_c_filename(directory_entry->d_name);
+        return is_c_filename((char *)directory_entry->d_name);
     } else {
         return FALSE;
     }
@@ -391,39 +391,55 @@ char *join_path_elements(char *path1, char *path2) {
     return result;
 }
 
-void process_folder(char *dirname) {
-    DIR* directory;
-    struct dirent *directory_entry;
+int filter_path_names(const struct dirent *directory_entry) {
+    char *skip_dirs[] = {".", "..", ".git"};
+    int num_skip_dirs = (int)sizeof(skip_dirs)/sizeof(skip_dirs[0]);
+    for(int k=0; k<num_skip_dirs; k++) {
+        if(!strcmp(directory_entry->d_name, skip_dirs[k])) {
+            return FALSE;
+        }
+    }
 
-    directory = opendir(dirname);
-    if(directory) {
-        while((directory_entry = readdir(directory))) {
+    return is_c_file(directory_entry) || directory_entry->d_type == DT_DIR;
+}
+
+void process_folder(char *dirname) {
+    struct dirent **directory_entry_list;
+    int n, k;
+
+    n = scandir(dirname, &directory_entry_list, &filter_path_names, alphasort);
+    if (n < 0) {
+        printf("Could not open directory %s", dirname);
+        exit(1);
+    } else {
+        for(k=0; k<n; k++) {
+            struct dirent *directory_entry = directory_entry_list[k];
             char *filename = directory_entry->d_name;
-            if(!strcmp(".", filename)) {
-                continue;
-            } else if(!strcmp("..", filename)) {
-                continue;
-            } else if(!strcmp(".git", filename)) {
-                continue;
-            } else if(is_c_file(directory_entry)) {
+            if(directory_entry->d_type == DT_REG) {
                 filename = join_path_elements(dirname, filename);
                 process_file(filename);
                 free(filename);
-            } else if(directory_entry->d_type == DT_DIR) {
+            }
+        }
+
+        for(k=0; k<n; k++) {
+            struct dirent *directory_entry = directory_entry_list[k];
+            char *filename = directory_entry->d_name;
+            if(directory_entry->d_type == DT_DIR) {
                 char *subdir_name = join_path_elements(dirname, filename);
                 process_folder(subdir_name);
                 free(subdir_name);
             }
         }
 
-        if(closedir(directory)) {
-            printf("Could not close directory %s", dirname);
+        for(int k=0; k<n; k++) {
+            free(directory_entry_list[k]);
         }
-    } else {
-        printf("Could not open directory %s", dirname);
-        exit(1);
+
+        free(directory_entry_list);
     }
 }
+
 
 int main(int argc, char* argv[]) {
     struct stat statbuffer;
